@@ -1,5 +1,9 @@
+using Duende.IdentityServer;
 using Duende.IdentityServer.EntityFramework.DbContexts;
 using Duende.IdentityServer.EntityFramework.Mappers;
+using IdentityServer.Data;
+using IdentityServer.Models;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 
@@ -9,17 +13,24 @@ internal static class HostingExtensions
 {
     public static WebApplication ConfigureServices(this WebApplicationBuilder builder)
     {
-        // uncomment if you want to add a UI
         builder.Services.AddRazorPages();
 
+        var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+        builder.Services.AddDbContext<ApplicationDbContext>(options =>
+            options.UseSqlite(connectionString));
+
+        builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
+            .AddEntityFrameworkStores<ApplicationDbContext>()
+            .AddDefaultTokenProviders();
+
         var migrationsAssembly = typeof(Program).Assembly.GetName().Name;
-        const string connectionString = @"Data Source=Duende.IdentityServer.Quickstart.EntityFramework.db";
 
         builder.Services.AddIdentityServer(options =>
-            {
-                // https://docs.duendesoftware.com/identityserver/v6/fundamentals/resources/api_scopes#authorization-based-on-scopes
-                options.EmitStaticAudienceClaim = true;
-            })
+        {
+            // https://docs.duendesoftware.com/identityserver/v6/fundamentals/resources/api_scopes#authorization-based-on-scopes
+            options.EmitStaticAudienceClaim = true;
+        })
             .AddConfigurationStore(options =>
             {
                 options.ConfigureDbContext = b => b.UseSqlite(connectionString, sql => sql.MigrationsAssembly(migrationsAssembly));
@@ -27,6 +38,19 @@ internal static class HostingExtensions
             .AddOperationalStore(options =>
             {
                 options.ConfigureDbContext = b => b.UseSqlite(connectionString, sql => sql.MigrationsAssembly(migrationsAssembly));
+            })
+            .AddAspNetIdentity<ApplicationUser>();
+
+        builder.Services.AddAuthentication()
+            .AddGoogle(options =>
+            {
+                options.SignInScheme = IdentityServerConstants.ExternalCookieAuthenticationScheme;
+
+                // register your IdentityServer with Google at https://console.developers.google.com
+                // enable the Google+ API
+                // set the redirect URI to https://localhost:5001/signin-google
+                options.ClientId = "copy client ID from Google here";
+                options.ClientSecret = "copy client secret from Google here";
             });
 
         return builder.Build();
@@ -43,14 +67,11 @@ internal static class HostingExtensions
 
         InitializeDatabase(app);
 
-        // uncomment if you want to add a UI
         app.UseStaticFiles();
         app.UseRouting();
-
         app.UseIdentityServer();
-
-        // uncomment if you want to add a UI
         app.UseAuthorization();
+
         app.MapRazorPages().RequireAuthorization();
 
         return app;
@@ -64,6 +85,14 @@ internal static class HostingExtensions
 
             var context = serviceScope.ServiceProvider.GetRequiredService<ConfigurationDbContext>();
             context.Database.Migrate();
+
+            // For testing only
+            if (context.Clients.Any())
+            {
+                context.Clients.RemoveRange(context.Clients);
+                context.SaveChanges();
+            }
+
             if (!context.Clients.Any())
             {
                 foreach (var client in Config.Clients)
@@ -73,12 +102,25 @@ internal static class HostingExtensions
                 context.SaveChanges();
             }
 
+            // For testing only
+            if (context.IdentityResources.Any())
+            {
+                context.IdentityResources.RemoveRange(context.IdentityResources);
+                context.SaveChanges();
+            }
+
             if (!context.IdentityResources.Any())
             {
                 foreach (var resource in Config.IdentityResources)
                 {
                     context.IdentityResources.Add(resource.ToEntity());
                 }
+                context.SaveChanges();
+            }
+
+            if (context.ApiScopes.Any())
+            {
+                context.ApiScopes.RemoveRange(context.ApiScopes);
                 context.SaveChanges();
             }
 

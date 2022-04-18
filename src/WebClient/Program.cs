@@ -15,14 +15,14 @@ builder.Services.AddAuthentication(options =>
     {
         options.Authority = "https://localhost:5001";
 
-        options.ClientId = "web";
-        options.ClientSecret = "secret";
+        options.ClientId = "Web";
+        options.ClientSecret = "Secrect";
         options.ResponseType = "code";
 
         options.Scope.Clear();
         options.Scope.Add("openid");
         options.Scope.Add("profile");
-        options.Scope.Add("api1");
+        options.Scope.Add("ApiDemo");
         options.GetClaimsFromUserInfoEndpoint = true;
         options.ClaimActions.MapJsonKey("email_verified", "email_verified");
 
